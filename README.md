@@ -1,5 +1,7 @@
 # bindering
 
+![bindering output](https://user-images.githubusercontent.com/836375/33342690-cfc50bf6-d437-11e7-9ae6-b55a66d5288d.png)
+
 To run:
 
 ```
