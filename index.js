@@ -1,3 +1,12 @@
+/**
+ * This repo is just me tinkering with the rx-binder and rx-jupyter interfaces
+ * to see how easy they are to work with (at least for an Rx user).
+ *
+ * Some major TODO for readability:
+ *  - Use primitive messages and message creators from @nteract/messaging
+ *  - Create a simplified way of wrapping next + subscription
+ */
+
 const { binder } = require("rx-binder");
 
 const { kernels } = require("rx-jupyter");
@@ -81,7 +90,10 @@ async function main() {
 
   var sub = kernel.channels.subscribe(
     x => jsome(x),
-    err => console.error(chalk.red("Kernel error"), err),
+    err => {
+      console.error(chalk.red("*** Kernel connection error ***"));
+      jsome(err);
+    },
     () => console.log(chalk.blue.bold("** Kernel connection closed! **"))
   );
 
