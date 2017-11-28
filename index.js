@@ -8,7 +8,6 @@
  */
 
 const { binder } = require("rx-binder");
-
 const { kernels } = require("rx-jupyter");
 
 const {
@@ -20,6 +19,7 @@ const {
   timeout,
   catchError
 } = require("rxjs/operators");
+
 const { empty } = require("rxjs/observable/empty");
 
 const { omit } = require("lodash");
@@ -41,6 +41,9 @@ async function serverMe(repo = "jupyterlab/jupyterlab") {
   return binder({ repo })
     .pipe(
       tap(msg => {
+        // We use this as a side-effectful logger just as part of this app
+        // In a real UI, you'd want all these messages to get dispatch to the
+        // proper store / state tree
         if (msg.phase === "building") {
           console.log(msg.message);
         } else {
