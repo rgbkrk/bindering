@@ -2,9 +2,21 @@ const { binder } = require("rx-binder");
 
 const { kernels } = require("rx-jupyter");
 
-const { filter, map, switchMap, tap } = require("rxjs/operators");
+const {
+  filter,
+  map,
+  switchMap,
+  tap,
+  first,
+  timeout,
+  catchError
+} = require("rxjs/operators");
+const { empty } = require("rxjs/observable/empty");
 
+const { omit } = require("lodash");
 const uuid = require("uuid");
+const chalk = require("chalk");
+const jsome = require("jsome");
 
 /** Forced polyfills for node **/
 const { XMLHttpRequest } = require("xmlhttprequest");
@@ -23,7 +35,8 @@ async function serverMe(repo = "jupyterlab/jupyterlab") {
         if (msg.phase === "building") {
           console.log(msg.message);
         } else {
-          console.log(msg);
+          console.log(chalk.blue.bold(`** Binder -- ${msg.phase} **`));
+          jsome(msg);
         }
       }),
       filter(msg => msg.phase === "ready"),
@@ -57,12 +70,19 @@ async function kernelMe(serverConfig, kernelName = "python3") {
 
 async function main() {
   const serverConfig = await serverMe("nteract/vdom");
+
+  console.log(chalk.blue.bold("** Launched server **"));
+  jsome(serverConfig);
+
   const kernel = await kernelMe(serverConfig);
 
+  console.log(chalk.blue.bold("** Launched kernel **"));
+  jsome(omit(kernel, ["channels"]));
+
   var sub = kernel.channels.subscribe(
-    x => console.log("kernel message", x),
-    err => console.error("kernel error", err),
-    () => console.log("kernel complete!")
+    x => jsome(x),
+    err => console.error(chalk.red("Kernel error"), err),
+    () => console.log(chalk.blue.bold("** Kernel connection closed! **"))
   );
 
   kernel.channels.next(
@@ -83,32 +103,49 @@ async function main() {
     })
   );
 
-  console.log(
-    "sleeping for a second, though we really just need to wait for status: idle"
-  );
+  await kernel.channels
+    .pipe(filter(m => m.header.msg_type === "status"), first())
+    .toPromise();
 
-  await sleep(1000);
+  const kernelInfoRequest = {
+    header: {
+      msg_id: uuid(),
+      username: "username",
+      session: kernel.session,
+      date: new Date().toISOString(),
+      msg_type: "kernel_info_request",
+      version: "5.2"
+    },
+    channel: "shell",
+    parent_header: {},
+    metadata: {},
+    content: {},
+    buffers: []
+  };
 
-  kernel.channels.next(
-    JSON.stringify({
-      header: {
-        msg_id: uuid(),
-        username: "username",
-        session: kernel.session,
-        date: new Date().toISOString(),
-        msg_type: "kernel_info_request",
-        version: "5.2"
-      },
-      channel: "shell",
-      parent_header: {},
-      metadata: {},
-      content: {},
-      buffers: []
-    })
-  );
+  // Prep our handler for the kernel info reply
+  const kr = kernel.channels
+    .pipe(
+      filter(m => m.parent_header.msg_id === kernelInfoRequest.header.msg_id),
+      filter(m => m.header.msg_type === "kernel_info_reply"),
+      first()
+    )
+    .toPromise();
 
-  console.log("Sleeping, mostly just for fun");
-  await sleep(60);
+  kernel.channels.next(JSON.stringify(kernelInfoRequest));
+
+  // Wait for the kernel info reply
+  await kr;
+
+  // Prep our handler for the kernel info reply
+  const ks = kernel.channels
+    .pipe(
+      filter(m => m.header.msg_type === "shutdown_reply"),
+      first(),
+      timeout(100),
+      catchError(() => empty())
+    )
+    .toPromise();
 
   kernel.channels.next(
     JSON.stringify({
@@ -128,12 +165,11 @@ async function main() {
     })
   );
 
-  console.log("Sleeping, mostly just for fun");
-  await sleep(60);
+  await ks;
 
   kernel.channels.complete();
 
-  console.log("Killing kernel");
+  console.log(chalk.blue.bold("** Killing kernel just to make it official **"));
   kernels.kill(serverConfig, kernel.id);
 }
 

@@ -1,3 +1,3 @@
 const { main } = require(".");
 
-main().then(console.log);
+main().catch(console.error);
