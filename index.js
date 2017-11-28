@@ -87,7 +87,7 @@ async function main() {
     "sleeping for a second, though we really just need to wait for status: idle"
   );
 
-  await sleep(60);
+  await sleep(1000);
 
   kernel.channels.next(
     JSON.stringify({
