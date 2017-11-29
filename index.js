@@ -152,6 +152,42 @@ async function main() {
   // Wait for the kernel info reply
   await kr;
 
+  const executeRequest = {
+    header: {
+      msg_id: uuid(),
+      username: "username",
+      session: kernel.session,
+      date: new Date().toISOString(),
+      msg_type: "execute_request",
+      version: "5.2"
+    },
+    channel: "shell",
+    parent_header: {},
+    metadata: {},
+    content: {
+      code: "display(3)",
+      silent: false,
+      store_history: true,
+      user_expressions: {},
+      allow_stdin: false,
+      stop_on_error: false
+    },
+    buffers: []
+  };
+
+  const p = kernel.channels
+    .pipe(
+      filter(m => m.parent_header.msg_id === executeRequest.header.msg_id),
+      filter(m => m.header.msg_type === "status"),
+      filter(m => m.content.execution_state === "idle"),
+      first()
+    )
+    .toPromise();
+
+  kernel.channels.next(JSON.stringify(executeRequest));
+
+  await p;
+
   // Prep our handler for the kernel info reply
   const ks = kernel.channels
     .pipe(
