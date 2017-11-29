@@ -165,7 +165,7 @@ async function main() {
     parent_header: {},
     metadata: {},
     content: {
-      code: "from vdom import h1\nh1('Woo')",
+      code: "from vdom import __version__, h1\nprint(__version__)\nh1('Woo')",
       silent: false,
       store_history: true,
       user_expressions: {},
