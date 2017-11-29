@@ -18,5 +18,5 @@ This will:
 * Launch a binder backed server
 * Launch a kernel
 * Query kernel status
+* Run some code
 * Shutdown the kernel
-
