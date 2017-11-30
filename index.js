@@ -45,10 +45,11 @@ async function serverMe(repo = "jupyterlab/jupyterlab") {
         // In a real UI, you'd want all these messages to get dispatch to the
         // proper store / state tree
         if (msg.phase === "building") {
-          console.log(msg.message);
+          process.stdout.write(msg.message);
         } else {
           console.log(chalk.blue.bold(`** Binder -- ${msg.phase} **`));
-          jsome(msg);
+          process.stdout.write(chalk.yellow(msg.message));
+          jsome(omit(msg, ["message"]));
         }
       }),
       filter(msg => msg.phase === "ready"),
@@ -92,7 +93,34 @@ async function main() {
   jsome(omit(kernel, ["channels"]));
 
   var sub = kernel.channels.subscribe(
-    x => jsome(x),
+    x => {
+      switch (x.header.msg_type) {
+        case "display_data":
+        case "execute_result":
+          process.stdout.write(
+            `${chalk.gray.dim("Out[")}${chalk.gray(
+              x.content.execution_count
+            )}${chalk.gray.dim("]: ")}`
+          );
+          if (x.content.data["application/vdom.v1+json"]) {
+            jsome(x.content.data["application/vdom.v1+json"]);
+          } else {
+            jsome(x.content);
+          }
+          break;
+        case "stream":
+          process.stdout.write(x.content.text);
+          break;
+        case "status":
+          console.log(
+            chalk.gray("state"),
+            chalk.keyword("orange")(x.content.execution_state)
+          );
+          break;
+        default:
+          break;
+      }
+    },
     err => {
       console.error(chalk.red("*** Kernel connection error ***"));
       jsome(err);
@@ -152,6 +180,10 @@ async function main() {
   // Wait for the kernel info reply
   await kr;
 
+  const code = `from vdom import __version__, h1, div, p
+print("vdom version", __version__)
+h1("It's Binder Time")`;
+
   const executeRequest = {
     header: {
       msg_id: uuid(),
@@ -165,7 +197,7 @@ async function main() {
     parent_header: {},
     metadata: {},
     content: {
-      code: "from vdom import __version__, h1\nprint(__version__)\nh1('Woo')",
+      code,
       silent: false,
       store_history: true,
       user_expressions: {},
@@ -183,6 +215,15 @@ async function main() {
       first()
     )
     .toPromise();
+
+  const fakeInput = `${chalk.gray.dim("In[")}${chalk.gray("0")}${chalk.gray.dim(
+    "]: "
+  )}${code
+    .split("\n")
+    .map(l => chalk.gray(l))
+    .join(chalk.gray.dim("\n   ... "))}`;
+
+  console.log(fakeInput);
 
   kernel.channels.next(JSON.stringify(executeRequest));
 
